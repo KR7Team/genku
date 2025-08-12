@@ -1,7 +1,7 @@
 // Impor modul 'fs' (File System) untuk menulis file
 const fs = require('fs');
 
-// Konfigurasi menunjuk ke sumber data JSON
+// Konfigurasi sumber data JSON
 const GITHUB_USERNAME = 'brodatv1';
 const GITHUB_REPO = 'jsonp';
 const GITHUB_BRANCH = 'master';
@@ -17,7 +17,7 @@ const JSON_FILES = [
 const BASE_URL = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/${GITHUB_BRANCH}/${GITHUB_FOLDER}/`;
 const OUTPUT_FILE = './dist/playlist.m3u';
 
-// --- Helper Function ---
+// Fungsi bantuan untuk konversi Base64URL ke HEX
 function b64urlToHex(b64url) {
   const base64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
   const raw = Buffer.from(base64, 'base64').toString('binary');
@@ -29,9 +29,10 @@ function b64urlToHex(b64url) {
   return hex;
 }
 
+// Fungsi utama untuk membuat playlist
 async function generateM3U() {
   try {
-    console.log('Fetching all JSON files...');
+    console.log('Mengambil semua file JSON...');
     const allJsonPromises = JSON_FILES.map(file =>
       fetch(BASE_URL + file).then(res => res.ok ? res.json() : null)
     );
@@ -45,23 +46,22 @@ async function generateM3U() {
         const channels = jsonData.info;
 
         channels.forEach(channel => {
-          // --- BLOK PERBAIKAN DATA "ON-THE-FLY" ---
-          // Kita periksa apakah ini channel yang bermasalah, lalu kita perbaiki datanya
-          if (channel.name === 'SPOTV' && !channel.header_iptv) {
-            console.log('Applying custom header patch for SPOTV...');
-            channel.header_iptv = "{\"Referer\": \"https://www.vidio.com/\"}";
-          }
-          // ------------------------------------------
+          if (channel && channel.name && channel.hls) {
+            
+            // =================================================================
+            //      ATURAN FINAL BERDASARKAN POLA URL '/live/channel'
+            // =================================================================
+            // Jika URL stream mengandung '/live/channel', terapkan header khusus.
+            if (channel.hls.includes('/live/channel')) {
+              console.log(`Menerapkan aturan header untuk channel: ${channel.name}`);
+              channel.header_iptv = "{\"http-user-agent\":\"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36\",\"http-referrer\":\"https://xl365.plcdn.xyz/\",\"http-origin\":\"https://xl365.plcdn.xyz\",\"network-caching\":\"1000\",\"--http-reconnect\":\"true\"}";
+            }
+            // =================================================================
 
-          const isChannelValid = 
-            channel && typeof channel === 'object' &&
-            channel.name && typeof channel.name === 'string' && channel.name.trim() !== '' &&
-            channel.hls && typeof channel.hls === 'string' && channel.hls.trim() !== '';
-
-          if (isChannelValid) {
             const logo = channel.image ? `tvg-logo="${channel.image}"` : '';
             m3uContent += `#EXTINF:-1 ${logo} group-title="${groupName}",${channel.name}\n`;
 
+            // Logika untuk lisensi DRM
             if (channel.jenis === 'dash-clearkey' && channel.url_license) {
               m3uContent += `#KODIPROP:inputstream.adaptive.license_type=clearkey\n`;
               let licenseKey = channel.url_license;
@@ -81,17 +81,12 @@ async function generateM3U() {
               m3uContent += `#KODIPROP:inputstream.adaptive.license_key=${channel.url_license}\n`;
             }
 
+            // Logika untuk menulis header dari `header_iptv`
             if (channel.header_iptv) {
               try {
                 const headers = JSON.parse(channel.header_iptv);
-                if (headers['User-Agent'] && headers['User-Agent'] !== 'none') {
-                  m3uContent += `#EXTVLCOPT:http-user-agent=${headers['User-Agent']}\n`;
-                }
-                if (headers['Referer'] && headers['Referer'] !== 'none') {
-                  m3uContent += `#EXTVLCOPT:http-referrer=${headers['Referer']}\n`;
-                }
-                if (headers['Origin'] && headers['Origin'] !== 'none') {
-                  m3uContent += `#EXTVLCOPT:http-origin=${headers['Origin']}\n`;
+                for (const [key, value] of Object.entries(headers)) {
+                  m3uContent += `#EXTVLCOPT:${key}=${value}\n`;
                 }
               } catch (e) { /* Abaikan */ }
             }
@@ -107,10 +102,10 @@ async function generateM3U() {
     }
     
     fs.writeFileSync(OUTPUT_FILE, m3uContent);
-    console.log(`Successfully generated playlist at ${OUTPUT_FILE}`);
+    console.log(`Playlist berhasil dibuat di ${OUTPUT_FILE}`);
 
   } catch (error) {
-    console.error(`Error generating M3U: ${error.message}`);
+    console.error(`Error: ${error.message}`);
     process.exit(1);
   }
 }
