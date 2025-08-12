@@ -4,10 +4,10 @@ const fs = require('fs');
 // Konfigurasi menunjuk ke sumber data JSON
 const GITHUB_USERNAME = 'brodatv1';
 const GITHUB_REPO = 'jsonp';
-const GITHUB_BRANCH = 'master'; // Diatur ke master sesuai repositori sumber
+const GITHUB_BRANCH = 'master';
 const GITHUB_FOLDER = 'mio';
 
-// Daftar file JSON yang akan diproses (AA.json sudah dihapus)
+// Daftar file JSON yang akan diproses
 const JSON_FILES = [
   'AU.json', 'BR.json', 'EV.json', 'GB.json', 'ID.json',
   'JP.json', 'KD.json', 'KR.json', 'LO.json', 'MI.json', 'MY.json',
@@ -45,6 +45,14 @@ async function generateM3U() {
         const channels = jsonData.info;
 
         channels.forEach(channel => {
+          // --- BLOK PERBAIKAN DATA "ON-THE-FLY" ---
+          // Kita periksa apakah ini channel yang bermasalah, lalu kita perbaiki datanya
+          if (channel.name === 'SPOTV' && !channel.header_iptv) {
+            console.log('Applying custom header patch for SPOTV...');
+            channel.header_iptv = "{\"Referer\": \"https://www.vidio.com/\"}";
+          }
+          // ------------------------------------------
+
           const isChannelValid = 
             channel && typeof channel === 'object' &&
             channel.name && typeof channel.name === 'string' && channel.name.trim() !== '' &&
@@ -54,7 +62,6 @@ async function generateM3U() {
             const logo = channel.image ? `tvg-logo="${channel.image}"` : '';
             m3uContent += `#EXTINF:-1 ${logo} group-title="${groupName}",${channel.name}\n`;
 
-            // Logika untuk menangani berbagai jenis lisensi
             if (channel.jenis === 'dash-clearkey' && channel.url_license) {
               m3uContent += `#KODIPROP:inputstream.adaptive.license_type=clearkey\n`;
               let licenseKey = channel.url_license;
@@ -66,7 +73,7 @@ async function generateM3U() {
                   const key = b64urlToHex(licenseJson.keys[0].k);
                   licenseKey = `${kid}:${key}`;
                 }
-              } catch (e) { /* Abaikan jika gagal, gunakan nilai asli */ }
+              } catch (e) { /* Abaikan */ }
               m3uContent += `#KODIPROP:inputstream.adaptive.license_key=${licenseKey}\n`;
             
             } else if (channel.jenis === 'widevine' && channel.url_license) {
@@ -74,7 +81,6 @@ async function generateM3U() {
               m3uContent += `#KODIPROP:inputstream.adaptive.license_key=${channel.url_license}\n`;
             }
 
-            // Logika untuk menangani header HTTP
             if (channel.header_iptv) {
               try {
                 const headers = JSON.parse(channel.header_iptv);
@@ -87,7 +93,7 @@ async function generateM3U() {
                 if (headers['Origin'] && headers['Origin'] !== 'none') {
                   m3uContent += `#EXTVLCOPT:http-origin=${headers['Origin']}\n`;
                 }
-              } catch (e) { /* Abaikan jika error */ }
+              } catch (e) { /* Abaikan */ }
             }
             
             m3uContent += `${channel.hls}\n`;
