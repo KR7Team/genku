@@ -2,8 +2,8 @@
 const fs = require('fs');
 
 // --- SESUAIKAN BAGIAN INI DENGAN REPO ANDA ---
-const GITHUB_USERNAME = 'KR7Team';
-const GITHUB_REPO = 'genku';
+const GITHUB_USERNAME = 'brodatv1';
+const GITHUB_REPO = 'jsonp';
 // ---------------------------------------------
 
 const GITHUB_BRANCH = 'main'; // atau 'master'
