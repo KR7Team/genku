@@ -1,16 +1,15 @@
 // Impor modul 'fs' (File System) untuk menulis file
 const fs = require('fs');
 
-// --- SESUAIKAN BAGIAN INI DENGAN REPO ANDA ---
+// Konfigurasi menunjuk ke sumber data JSON
 const GITHUB_USERNAME = 'brodatv1';
 const GITHUB_REPO = 'jsonp';
-// ---------------------------------------------
-
-const GITHUB_BRANCH = 'main'; // atau 'master'
+const GITHUB_BRANCH = 'master'; // Diatur ke master sesuai repositori sumber
 const GITHUB_FOLDER = 'mio';
 
+// Daftar file JSON yang akan diproses (AA.json sudah dihapus)
 const JSON_FILES = [
-  'AA.json', 'AU.json', 'BR.json', 'EV.json', 'GB.json', 'ID.json',
+  'AU.json', 'BR.json', 'EV.json', 'GB.json', 'ID.json',
   'JP.json', 'KD.json', 'KR.json', 'LO.json', 'MI.json', 'MY.json',
   'RI.json', 'SA.json', 'SG.json', 'SP.json'
 ];
@@ -55,7 +54,7 @@ async function generateM3U() {
             const logo = channel.image ? `tvg-logo="${channel.image}"` : '';
             m3uContent += `#EXTINF:-1 ${logo} group-title="${groupName}",${channel.name}\n`;
 
-            // ---- LOGIKA BARU UNTUK BERBAGAI JENIS LISENSI ----
+            // Logika untuk menangani berbagai jenis lisensi
             if (channel.jenis === 'dash-clearkey' && channel.url_license) {
               m3uContent += `#KODIPROP:inputstream.adaptive.license_type=clearkey\n`;
               let licenseKey = channel.url_license;
@@ -71,11 +70,11 @@ async function generateM3U() {
               m3uContent += `#KODIPROP:inputstream.adaptive.license_key=${licenseKey}\n`;
             
             } else if (channel.jenis === 'widevine' && channel.url_license) {
-              // INI ADALAH BLOK KODE BARU UNTUK WIDEVINE
               m3uContent += `#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha\n`;
               m3uContent += `#KODIPROP:inputstream.adaptive.license_key=${channel.url_license}\n`;
             }
 
+            // Logika untuk menangani header HTTP
             if (channel.header_iptv) {
               try {
                 const headers = JSON.parse(channel.header_iptv);
@@ -90,7 +89,6 @@ async function generateM3U() {
                 }
               } catch (e) { /* Abaikan jika error */ }
             }
-            // ---------------------------------------------
             
             m3uContent += `${channel.hls}\n`;
           }
