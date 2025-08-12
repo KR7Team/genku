@@ -1,10 +1,12 @@
 // Impor modul 'fs' (File System) untuk menulis file
 const fs = require('fs');
 
-// Konfigurasi repositori Anda
-const GITHUB_USERNAME = 'brodatv1';
-const GITHUB_REPO = 'jsonp';
-const GITHUB_BRANCH = 'master';
+// --- SESUAIKAN BAGIAN INI DENGAN REPO ANDA ---
+const GITHUB_USERNAME = 'KR7Team';
+const GITHUB_REPO = 'genku';
+// ---------------------------------------------
+
+const GITHUB_BRANCH = 'main'; // atau 'master'
 const GITHUB_FOLDER = 'mio';
 
 const JSON_FILES = [
@@ -14,13 +16,11 @@ const JSON_FILES = [
 ];
 
 const BASE_URL = `https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/${GITHUB_BRANCH}/${GITHUB_FOLDER}/`;
-const OUTPUT_FILE = './dist/playlist.m3u'; // Nama file output
+const OUTPUT_FILE = './dist/playlist.m3u';
 
 // --- Helper Function ---
-// Fungsi untuk mengubah string Base64URL menjadi HEX
 function b64urlToHex(b64url) {
   const base64 = b64url.replace(/-/g, '+').replace(/_/g, '/');
-  // Di Node.js, kita gunakan Buffer untuk menangani base64, ini pengganti atob()
   const raw = Buffer.from(base64, 'base64').toString('binary');
   let hex = '';
   for (let i = 0; i < raw.length; i++) {
@@ -30,19 +30,11 @@ function b64urlToHex(b64url) {
   return hex;
 }
 
-// Fungsi utama yang akan kita panggil
 async function generateM3U() {
   try {
     console.log('Fetching all JSON files...');
     const allJsonPromises = JSON_FILES.map(file =>
-      fetch(BASE_URL + file).then(res => {
-        if (res.ok) {
-          console.log(`Successfully fetched ${file}`);
-          return res.json();
-        }
-        console.error(`Failed to fetch ${file}: ${res.statusText}`);
-        return null;
-      })
+      fetch(BASE_URL + file).then(res => res.ok ? res.json() : null)
     );
     const allJsonData = await Promise.all(allJsonPromises);
 
@@ -63,11 +55,11 @@ async function generateM3U() {
             const logo = channel.image ? `tvg-logo="${channel.image}"` : '';
             m3uContent += `#EXTINF:-1 ${logo} group-title="${groupName}",${channel.name}\n`;
 
+            // ---- LOGIKA BARU UNTUK BERBAGAI JENIS LISENSI ----
             if (channel.jenis === 'dash-clearkey' && channel.url_license) {
               m3uContent += `#KODIPROP:inputstream.adaptive.license_type=clearkey\n`;
               let licenseKey = channel.url_license;
               try {
-                // Di Node.js, atob() diganti dengan Buffer
                 const decodedLicense = Buffer.from(channel.url_license, 'base64').toString('utf-8');
                 const licenseJson = JSON.parse(decodedLicense);
                 if (licenseJson.keys && licenseJson.keys[0]) {
@@ -75,10 +67,13 @@ async function generateM3U() {
                   const key = b64urlToHex(licenseJson.keys[0].k);
                   licenseKey = `${kid}:${key}`;
                 }
-              } catch (e) {
-                 // Abaikan jika error
-              }
+              } catch (e) { /* Abaikan jika gagal, gunakan nilai asli */ }
               m3uContent += `#KODIPROP:inputstream.adaptive.license_key=${licenseKey}\n`;
+            
+            } else if (channel.jenis === 'widevine' && channel.url_license) {
+              // INI ADALAH BLOK KODE BARU UNTUK WIDEVINE
+              m3uContent += `#KODIPROP:inputstream.adaptive.license_type=com.widevine.alpha\n`;
+              m3uContent += `#KODIPROP:inputstream.adaptive.license_key=${channel.url_license}\n`;
             }
 
             if (channel.header_iptv) {
@@ -95,6 +90,7 @@ async function generateM3U() {
                 }
               } catch (e) { /* Abaikan jika error */ }
             }
+            // ---------------------------------------------
             
             m3uContent += `${channel.hls}\n`;
           }
@@ -102,20 +98,17 @@ async function generateM3U() {
       }
     });
 
-    // Membuat folder 'dist' jika belum ada
     if (!fs.existsSync('./dist')){
         fs.mkdirSync('./dist');
     }
     
-    // Menulis konten M3U ke file
     fs.writeFileSync(OUTPUT_FILE, m3uContent);
     console.log(`Successfully generated playlist at ${OUTPUT_FILE}`);
 
   } catch (error) {
     console.error(`Error generating M3U: ${error.message}`);
-    process.exit(1); // Keluar dengan status error
+    process.exit(1);
   }
 }
 
-// Panggil fungsi utama
 generateM3U();
